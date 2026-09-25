@@ -311,6 +311,14 @@ def _last(fields: dict[int, list[bytes]], tag: int) -> bytes | None:
     return values[-1] if values else None
 
 
+def _first_not_none(*values: int | None) -> int | None:
+    """Prefer the first present value; unlike `or`, a legitimate 0 is not skipped."""
+    for value in values:
+        if value is not None:
+            return value
+    return None
+
+
 def _u8(value: bytes | None) -> int | None:
     return value[0] if value else None
 
@@ -383,7 +391,7 @@ def parse_probe_session_status_tlv(payload: bytes) -> dict[str, Any]:
     fields = parse_tlv(payload)
     slot_index = _u8(_last(fields, 1))
     state_value = _u8(_last(fields, 12))
-    probe_type_value = _u8(_last(fields, 19)) or _u8(_last(fields, 4))
+    probe_type_value = _first_not_none(_u8(_last(fields, 19)), _u8(_last(fields, 4)))
     probe_temp_dc = _i16(_last(fields, 10))
     segment_temps = [_i16(item) for item in fields.get(23, [])]
 
@@ -393,13 +401,13 @@ def parse_probe_session_status_tlv(payload: bytes) -> dict[str, Any]:
         "label": f"Probe {slot_index + 1}" if slot_index is not None else "Probe",
         "session_id": _u8(_last(fields, 2)),
         "program_id_hex": bytes_to_hex(_last(fields, 3) or b"") or None,
-        "plan_id": _u32(_last(fields, 16)) or _u8(_last(fields, 4)),
+        "plan_id": _first_not_none(_u32(_last(fields, 16)), _u8(_last(fields, 4))),
         "time_remaining_s": _u32(_last(fields, 5)),
         "time_elapsed_s": _u32(_last(fields, 6)),
-        "step_id": _u16(_last(fields, 17)) or _u8(_last(fields, 7)),
+        "step_id": _first_not_none(_u16(_last(fields, 17)), _u8(_last(fields, 7))),
         "prompt_time_remaining_s": _u32(_last(fields, 8)),
         "prompt_time_elapsed_s": _u32(_last(fields, 9)),
-        "prompt_id": _u16(_last(fields, 18)) or _u8(_last(fields, 11)),
+        "prompt_id": _first_not_none(_u16(_last(fields, 18)), _u8(_last(fields, 11))),
         "state_value": state_value,
         "state": SESSION_STATES.get(state_value, "UNKNOWN"),
         "probe_type_value": probe_type_value,
