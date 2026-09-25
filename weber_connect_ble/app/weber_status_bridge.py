@@ -37,9 +37,22 @@ DEFAULT_PAIRING_SUMMARY = Path("weber_probe/weber_android_pairing_summary.json")
 DEFAULT_JSON_OUT = Path("weber_probe/weber_status_latest.json")
 DEFAULT_TOPIC_ROOT = "weber_connect"
 STATE_TOPIC_SUFFIX = "state"
-VERSION = "0.1.0"
+CONFIG_YAML_PATH = Path(__file__).resolve().parent.parent / "config.yaml"
 HEX_16_BYTES_RE = re.compile(r"^[0-9a-fA-F]{32}$")
 LOGGER = logging.getLogger("weber_connect_bridge")
+
+
+def _read_addon_version() -> str:
+    """Read the add-on version from config.yaml so it never drifts from the version reported over MQTT."""
+    try:
+        text = CONFIG_YAML_PATH.read_text(encoding="utf-8")
+    except OSError:
+        return "0.0.0"
+    match = re.search(r'^version:\s*"?([^"\n]+?)"?\s*$', text, re.MULTILINE)
+    return match.group(1) if match else "0.0.0"
+
+
+VERSION = _read_addon_version()
 
 
 def utc_now() -> str:
@@ -233,17 +246,15 @@ def render_topic_prefix(template: str, *, device_id: str, object_slug: str, seri
         "serial": serial,
     }
     rendered = (template or DEFAULT_TOPIC_ROOT).strip("/")
-
-    if any(f"{{{key}}}" in rendered for key in values):
-        for key, value in values.items():
-            rendered = rendered.replace(f"{{{key}}}", value)
-        return rendered.replace("{", "").replace("}", "").strip("/")
+    has_placeholder = any(f"{{{key}}}" in rendered for key in values)
 
     for key, value in values.items():
         rendered = rendered.replace(f"{{{key}}}", value)
-
     if "{" in rendered or "}" in rendered:
         rendered = rendered.replace("{", "").replace("}", "").strip("/")
+
+    if has_placeholder:
+        return rendered
 
     if not rendered:
         rendered = DEFAULT_TOPIC_ROOT

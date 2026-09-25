@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import sys
 import unittest
 from pathlib import Path
@@ -217,6 +218,12 @@ class BridgeContractTests(unittest.TestCase):
         )
 
         self.assertEqual(plan[-1]["topic"], "outdoor/kitchen/weber_connect_testserial/state")
+
+    def test_version_matches_addon_config(self):
+        config_text = (ROOT / "weber_connect_ble" / "config.yaml").read_text(encoding="utf-8")
+        match = re.search(r'^version:\s*"?([^"\n]+?)"?\s*$', config_text, re.MULTILINE)
+        self.assertIsNotNone(match, "config.yaml is missing a version field")
+        self.assertEqual(bridge.VERSION, match.group(1))
 
     def test_release_ble_connection_noop_without_bluetoothctl(self):
         with mock.patch.object(bridge.shutil, "which", return_value=None):
